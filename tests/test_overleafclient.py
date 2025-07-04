@@ -10,7 +10,7 @@ try:
 except ImportError:
     pass
 
-from mcp.overleaf_api.core import OverleafClient
+from resume_mcp.overleaf_api.core import OverleafClient
 
 # --- Test Configuration ---
 PROJECT = os.environ.get("OVERLEAF_TEST_PROJECT")

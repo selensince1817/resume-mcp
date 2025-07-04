@@ -1,2 +1,2 @@
 def main() -> None:
-    print("Hello from cv-mcp!")
+    print("Hello from resume_mcp!")
