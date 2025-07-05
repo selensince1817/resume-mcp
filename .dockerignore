@@ -1,0 +1,24 @@
+# .dockerignore
+
+# Git and Docker artifacts
+.git
+.gitignore
+.dockerignore
+Dockerfile
+
+# Python virtual environment and cache
+.venv
+__pycache__/
+*.pyc
+
+# Local build artifacts
+dist/
+build/
+*.egg-info/
+
+# Tests should not be in the production image
+tests/
+
+# Operating system files
+.DS_Store
+
