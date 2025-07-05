@@ -13,7 +13,7 @@ dependencies = [
 
 [project.scripts]
 mcp = "mcp:main"
-overleaf-cli = "mcp.overleaf_api.cli:app"
+overleaf-cli = "resume_mcp.overleaf_api.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -25,5 +25,5 @@ dev = [
     "python-dotenv>=1.1.1",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/resume_mcp"]
