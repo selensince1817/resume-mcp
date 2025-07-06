@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import pyoverleaf
+import certifi
 from pathlib import PurePosixPath
 
 # Load .env automatically if python-dotenv is installed (optional)
@@ -19,9 +20,15 @@ except ImportError:
     pass
 
 
+class OverleafConnectionError(Exception):
+    """Custom exception for errors related to Overleaf API connection or authentication."""
+
+    pass
+
+
 class OverleafClient:
     def __init__(self, project_name: str):
-        self.api = pyoverleaf.Api()
+        self.api = pyoverleaf.Api(ssl_verify=certifi.where())
 
         # 1. Read the session cookie from an environment variable
         session_cookie = os.environ.get("OVERLEAF_SESSION_COOKIE")

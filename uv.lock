@@ -861,6 +861,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "black" },
+    { name = "certifi" },
     { name = "fastmcp" },
     { name = "pyoverleaf" },
     { name = "typer" },
@@ -875,6 +876,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "black", specifier = ">=25.1.0" },
+    { name = "certifi", specifier = ">=2025.6.15" },
     { name = "fastmcp", specifier = ">=2.10.1" },
     { name = "pyoverleaf", specifier = ">=0.1.5" },
     { name = "typer", specifier = ">=0.16.0" },
