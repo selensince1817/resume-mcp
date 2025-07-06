@@ -6,23 +6,46 @@ they raise Python exceptions instead.  This makes them reusable.
 
 from __future__ import annotations
 
+import os
 import pyoverleaf
 from pathlib import PurePosixPath
+
+# Load .env automatically if python-dotenv is installed (optional)
+try:
+    import dotenv
+
+    dotenv.load_dotenv()
+except ImportError:
+    pass
 
 
 class OverleafClient:
     def __init__(self, project_name: str):
         self.api = pyoverleaf.Api()
-        self.api.login_from_browser()
 
-        # Resolve project-id once
+        # 1. Read the session cookie from an environment variable
+        session_cookie = os.environ.get("OVERLEAF_SESSION_COOKIE")
+
+        if not session_cookie:
+            raise ValueError(
+                "The OVERLEAF_SESSION_COOKIE environment variable is not set."
+            )
+
+        # 2. Create a dictionary with the session cookie
+        # The key 'overleaf_session2' is the standard name for this cookie.
+        cookies = {"overleaf_session2": session_cookie}
+
+        # 3. Log in using the manually provided cookie dictionary
+        self.api.login_from_cookies(cookies)
+
+        # Resolve project-id once (this part remains the same)
         projects = {p.name: p.id for p in self.api.get_projects()}
         try:
             self.project_id = projects[project_name]
         except KeyError:  # pragma: no cover
             raise ValueError(f"Project '{project_name}' not found")
 
-        # Lazily create IO wrapper
+        # Lazily create IO wrapper (this part remains the same)
         self.io = pyoverleaf.ProjectIO(self.api, self.project_id)
 
     def refresh(self):
@@ -73,6 +96,18 @@ class OverleafClient:
         """
         Returns a list of dicts: [{"name": <project_name>, "id": <project_id>}, ...]
         """
+        import os
+
+        # Read the session cookie from an environment variable
+        session_cookie = os.environ.get("OVERLEAF_SESSION_COOKIE")
+        if not session_cookie:
+            raise ValueError(
+                "The OVERLEAF_SESSION_COOKIE environment variable is not set."
+            )
+
+        # Create a cookies dict
+        cookies = {"overleaf_session2": session_cookie}
+
         api = pyoverleaf.Api()
-        api.login_from_browser()
+        api.login_from_cookies(cookies)
         return [{"name": p.name, "id": p.id} for p in api.get_projects()]
