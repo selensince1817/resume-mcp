@@ -41,8 +41,6 @@ COPY src/ ./src
 # which is necessary for the `src` layout to work correctly.
 ENV PYTHONPATH=/app/src
 
-RUN uv pip install -e overleaf-cli
-
 # Command to run your MCP server
 # We execute the python binary from our virtual environment
 #CMD ["./.venv/bin/python", "-m", "resume_mcp.mcp_server.server"]
