@@ -44,5 +44,5 @@ ENV PYTHONPATH=/app/src
 # Command to run your MCP server
 # We execute the python binary from our virtual environment
 #CMD ["./.venv/bin/python", "-m", "resume_mcp.mcp_server.server"]
-CMD [".venv/bin/overleaf-cli", "projects"]
+CMD [".venv/bin/overleaf-cli", "read", "CV-XeLate", "main.tex"]
 
