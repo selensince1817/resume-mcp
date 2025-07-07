@@ -1,3 +1,10 @@
+# .gitignore
+
+# Secrets and Credentials
+private_key.pem
+public_key.pem
+access_token.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

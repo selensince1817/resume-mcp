@@ -112,7 +112,7 @@ class OverleafClient:
                 "The OVERLEAF_SESSION_COOKIE environment variable is not set."
             )
 
-        # Create a cookies dict
+        # Create a cookie dict
         cookies = {"overleaf_session2": session_cookie}
 
         api = pyoverleaf.Api()

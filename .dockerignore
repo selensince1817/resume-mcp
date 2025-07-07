@@ -1,5 +1,10 @@
 # .dockerignore
 
+# Secrets and Credentials
+private_key.pem
+public_key.pem
+access_token.txt
+
 # Git and Docker artifacts
 .git
 .gitignore
