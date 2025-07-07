@@ -97,6 +97,20 @@ def write_file(project_name: str, file_path: str, content: str) -> Dict[str, Any
         )
 
 
+@mcp.tool
+def read_resume() -> str:
+    """
+    Reads the content of user's resume/CV from an Overleaf project called "CV-XeLate".
+    """
+    try:
+        client = _get_client("CV-XeLate")
+        return client.read("main.tex")
+    except FileNotFoundError:
+        raise ToolError(f"Oops")
+    except Exception as e:
+        raise ToolError(str(e))
+
+
 # --- Custom Web Route ---
 # As per the docs, custom routes can be added for things like health checks.
 @mcp.custom_route("/health", methods=["GET"])
