@@ -1,17 +1,43 @@
 import os
+import sys
 from typing import List, Dict, Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.auth import BearerAuthProvider
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from resume_mcp.overleaf_api.core import OverleafClient, OverleafConnectionError
 
+# Authentication Setup
+AUDIENCE = "resume-mcp-server"
+PUBLIC_KEY_PATH = "public_key.pem"
+PRIVATE_KEY_PATH = "private_key.pem"
+
+try:
+    # Load the keys from the files you generated in binary mode
+    with open(PUBLIC_KEY_PATH, "rb") as f:
+        public_key_bytes = f.read()
+    with open(PRIVATE_KEY_PATH, "rb") as f:
+        private_key_bytes = f.read()
+
+    # Decode bytes into strings
+    public_key = public_key_bytes.decode("utf-8")
+    private_key = private_key_bytes.decode("utf-8")
+
+    auth_provider = BearerAuthProvider(public_key=public_key, audience=AUDIENCE)
+
+except FileNotFoundError:
+    auth_provider = None
+
+
 # --- MCP Server Initialization ---
 mcp = FastMCP(
     name="Overleaf Project Manager",
-    instructions="This server provides tools to list projects, and read or write files within a specific Overleaf project. Please provide a project_name for all file operations.",
+    instructions="This server provides tools to list Overleaf projects, and read or write files within a specific Overleaf project. Please provide a project_name for all file operations.",
     dependencies=["pyoverleaf", "python-dotenv", "uvicorn"],
+    auth=auth_provider,
+    stateless_http=True,
 )
 
 
@@ -57,7 +83,7 @@ def list_files(project_name: str, path: str = "") -> List[str]:
     """
     try:
         client = _get_client(project_name)
-        return [entity.name for entity in client.listdir(path)]
+        return [entity for entity in client.listdir(path)]
     except FileNotFoundError:
         raise ToolError(f"Path '{path}' not found in project '{project_name}'.")
     except Exception as e:
@@ -120,16 +146,11 @@ async def health_check(request: Request) -> PlainTextResponse:
 
 
 # --- Main Execution Block ---
-# This block now runs the server using the recommended Streamable HTTP transport.
 if __name__ == "__main__":
-    print("Starting FastMCP Server for Overleaf using Streamable HTTP...")
 
-    # Run the server as a web service.
-    # It will be accessible on http://127.0.0.1:8000 by default.
-    # The MCP endpoint will be at /mcp, and the health check at /health.
     mcp.run(
         transport="stdio",
         host="127.0.0.1",
         port=8000,
-        log_level="info",
+        log_level="debug",
     )
