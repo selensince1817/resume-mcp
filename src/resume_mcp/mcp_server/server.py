@@ -1,5 +1,4 @@
 import os
-import sys
 from typing import List, Dict, Any
 
 from fastmcp import FastMCP
@@ -126,7 +125,7 @@ def write_file(project_name: str, file_path: str, content: str) -> Dict[str, Any
 @mcp.tool
 def read_resume() -> str:
     """
-    Reads the content of user's resume/CV from an Overleaf project called "CV-XeLate".
+    Reads the content of the user's resume/CV from an Overleaf project called "CV-XeLate".
     """
     try:
         client = _get_client("CV-XeLate")

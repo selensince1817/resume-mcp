@@ -2,6 +2,7 @@
 
 from fastmcp.server.auth.providers.bearer import RSAKeyPair
 from pydantic import SecretStr
+from fastmcp.server.auth.providers.bearer import RSAKeyPair
 
 
 def create_access_token(
@@ -16,3 +17,38 @@ def create_access_token(
         audience=audience, expires_in_seconds=expires_in_seconds
     )
     return access_token
+
+
+def gen_keys() -> None:
+
+    print("Generating new RSA key pair...")
+
+    try:
+        # This generates an object where the keys are already PEM-encoded strings.
+        # The private key is wrapped in a SecretStr for security.
+        key_pair = RSAKeyPair.generate()
+
+        # --- Private Key Handling ---
+        # Get the private key string from the SecretStr wrapper and encode it to bytes.
+        private_key_pem_string = key_pair.private_key.get_secret_value()
+        private_key_bytes = private_key_pem_string.encode("utf-8")
+
+        # --- Public Key Handling ---
+        # The public key is already a simple string. Just encode it to bytes.
+        public_key_pem_string = key_pair.public_key
+        public_key_bytes = public_key_pem_string.encode("utf-8")
+
+        # --- Save to Files ---
+        with open("private_key.pem", "wb") as f:
+            f.write(private_key_bytes)
+
+        with open("public_key.pem", "wb") as f:
+            f.write(public_key_bytes)
+
+        print(
+            "✅ Successfully generated and saved 'private_key.pem' and 'public_key.pem'."
+        )
+        print("Keep your private_key.pem file secure and do not share it.")
+
+    except Exception as e:
+        print(f"❌ Failed to generate keys: {e}")
