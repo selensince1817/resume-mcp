@@ -46,9 +46,8 @@ def gen_keys() -> None:
             f.write(public_key_bytes)
 
         print(
-            "✅ Successfully generated and saved 'private_key.pem' and 'public_key.pem'."
+            "Successfully generated and saved 'private_key.pem' and 'public_key.pem'."
         )
-        print("Keep your private_key.pem file secure and do not share it.")
 
     except Exception as e:
-        print(f"❌ Failed to generate keys: {e}")
+        print(f"Failed to generate keys: {e}")
