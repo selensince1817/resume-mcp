@@ -3,7 +3,7 @@
 # Secrets and Credentials
 private_key.pem
 public_key.pem
-access_token.txt
+src/resume_mcp/mcp_server/access_token.txt
 
 # Git and Docker artifacts
 .git
