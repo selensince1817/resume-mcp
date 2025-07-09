@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp = "mcp:main"
+rmcp = "resume_mcp.mcp_server.server:main"
 overleaf-cli = "resume_mcp.overleaf_api.cli:app"
 
 [build-system]

@@ -1,48 +1,23 @@
 import os
 from typing import Literal, Dict, Any, List
-from fastmcp import Context
 import json
+
 from fastmcp import FastMCP
 from typing import Dict
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import BearerAuthProvider
-from starlette.requests import Request
-from starlette.responses import PlainTextResponse
 from resume_mcp.overleaf_api.core import OverleafClient, OverleafConnectionError
+from .utils import load_public_key
+from .config import Config
 
-# Authentication Setup
-AUDIENCE = "resume-mcp-server"
-PUBLIC_KEY_PATH = "public_key.pem"
-# PRIVATE_KEY_PATH = "private_key.pem"
-
-CONFIG = {
-    "CV_PROJECT_PATH": "cv-xelatex",
-    "CV_MAIN_TEX_PATH": "main.tex",
-    "CV_SECTIONS_PATHS": {
-        "heading": "sections/heading.tex",
-        "education": "sections/education.tex",
-        "experience": "sections/experience.tex",
-        "additional_experience": "sections/additional_experience.tex",
-        "skills": "sections/skills.tex",
-    },
-    "LLM_MAX_TOKENS": 8192,
-}
-
+# --- Bearer Authentication Initialization ---
 try:
-    # Load the keys from the files you generated in binary mode
-    with open(PUBLIC_KEY_PATH, "rb") as f:
-        public_key_bytes = f.read()
-    # with open(PRIVATE_KEY_PATH, "rb") as f:
-    #     private_key_bytes = f.read()
-
-    # Decode bytes into strings
-    public_key = public_key_bytes.decode("utf-8")
-    # private_key = private_key_bytes.decode("utf-8")
-
-    auth_provider = BearerAuthProvider(public_key=public_key, audience=AUDIENCE)
-
-except FileNotFoundError:
+    auth_provider = BearerAuthProvider(
+        public_key=load_public_key(), audience=Config.AUDIENCE
+    )
+except Exception as e:
+    print(f"Failed to initialize auth provider: {e}")
     auth_provider = None
 
 
@@ -56,30 +31,9 @@ mcp = FastMCP(
 )
 
 
-# --- Helper Function ---
-def _get_client(project_name: str) -> OverleafClient:
-    """
-    Initializes and returns an OverleafClient for the given project.
-    Raises ToolError if the client cannot be created.
-    """
-    try:
-        if not os.environ.get("OVERLEAF_SESSION_COOKIE"):
-            raise OverleafConnectionError(
-                "Configuration Error: The OVERLEAF_SESSION_COOKIE environment variable is not set on the server."
-            )
-        return OverleafClient(project_name)
-    except OverleafConnectionError as e:
-        raise ToolError(f"Failed to connect to Overleaf: {e}")
-    except Exception as e:
-        raise ToolError(
-            f"An unexpected error occurred while connecting to project '{project_name}': {e}"
-        )
-
-
-# --- MCP Tools --- #
+# --- Main MCP Functionality --- #
 @mcp.tool
 async def analyse_cv_against_job(
-    project_name: str,
     job_description: str,
     ctx: Context,
 ) -> Dict[str, Any]:
@@ -87,10 +41,11 @@ async def analyse_cv_against_job(
     Reads all CV sections from Overleaf, compares to the job description via LLM,
     and returns a strengths & gaps analysis.
     """
-    # Step 1: Fetch resume sections
+    # Step 1: Fetch resume sections -> Dict
+    project_name = Config.CV_PROJECT_NAME
     resume_sections = await get_full_resume(project_name, ctx=ctx)
 
-    # Step 2: Use the LLM prompt to get strengths/gaps as JSON (string)
+    # Step 2: Use the LLM prompt to get strengths/gaps as JSON (string) -> Gaps
     analysis_json_str = await assess_profile_similarity.render(
         resume_sections=resume_sections, job_description=job_description
     )
@@ -106,9 +61,6 @@ async def analyse_cv_against_job(
 
     # Step 4: Return strengths/gaps (already as dict)
     return analysis
-
-
-from fastmcp import Context
 
 
 @mcp.prompt
@@ -140,7 +92,7 @@ async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, str]:
     as a dictionary keyed by the section name.
     Example: {"heading": "...", "education": "...", ...}
     """
-    section_map = CONFIG["CV_SECTIONS_PATHS"]
+    section_map = Config.CV_SECTIONS_PATHS
     client = _get_client(project_name)
     resume_data = {}
 
@@ -156,6 +108,7 @@ async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, str]:
     return resume_data
 
 
+# --- Atomic MCP Functionality --- #
 @mcp.tool
 def list_overleaf_projects() -> List[Dict[str, str]]:
     """
@@ -215,20 +168,31 @@ def write_file(project_name: str, file_path: str, content: str) -> Dict[str, Any
         )
 
 
-# --- Custom Web Route ---
-# As per the docs, custom routes can be added for things like health checks.
-@mcp.custom_route("/health", methods=["GET"])
-async def health_check(request: Request) -> PlainTextResponse:
-    """A simple health check endpoint that returns 'OK'."""
-    return PlainTextResponse("OK")
+# --- Helper Function ---
+def _get_client(project_name: str) -> OverleafClient:
+    """
+    Initializes and returns an OverleafClient for the given project.
+    Raises ToolError if the client cannot be created.
+    """
+    try:
+        if not os.environ.get("OVERLEAF_SESSION_COOKIE"):
+            raise OverleafConnectionError(
+                "Configuration Error: The OVERLEAF_SESSION_COOKIE environment variable is not set on the server."
+            )
+        return OverleafClient(project_name)
+    except OverleafConnectionError as e:
+        raise ToolError(f"Failed to connect to Overleaf: {e}")
+    except Exception as e:
+        raise ToolError(
+            f"An unexpected error occurred while connecting to project '{project_name}': {e}"
+        )
 
 
 # --- Main Execution Block ---
-if __name__ == "__main__":
+def main():
+    """Main function to run the MCP server."""
+    mcp.run(transport="http", host="127.0.0.1", port=8000, log_level="info")
 
-    mcp.run(
-        transport="stdio",
-        host="127.0.0.1",
-        port=8000,
-        log_level="info",
-    )
+
+if __name__ == "__main__":
+    main()

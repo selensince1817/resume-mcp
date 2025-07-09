@@ -3,6 +3,25 @@
 from fastmcp.server.auth.providers.bearer import RSAKeyPair
 from pydantic import SecretStr
 from fastmcp.server.auth.providers.bearer import RSAKeyPair
+from .config import Config
+
+
+def load_public_key():
+    try:
+        with open(Config.PUBLIC_KEY_PATH, "r") as f:
+            public_key = f.read()
+        return public_key
+    except FileNotFoundError:
+        return None
+
+
+def load_private_key_bytes():
+    try:
+        with open(Config.PRIVATE_KEY_PATH, "r") as f:
+            private_key = f.read()
+        return private_key
+    except FileNotFoundError:
+        return None
 
 
 def create_access_token(
@@ -42,7 +61,7 @@ def gen_keys() -> None:
         with open("private_key.pem", "wb") as f:
             f.write(private_key_bytes)
 
-        with open("public_key.pem", "wb") as f:
+        with open("../../../public_key.pem", "wb") as f:
             f.write(public_key_bytes)
 
         print(
