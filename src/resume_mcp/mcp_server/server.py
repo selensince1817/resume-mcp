@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -11,18 +11,18 @@ from resume_mcp.overleaf_api.core import OverleafClient, OverleafConnectionError
 # Authentication Setup
 AUDIENCE = "resume-mcp-server"
 PUBLIC_KEY_PATH = "public_key.pem"
-PRIVATE_KEY_PATH = "private_key.pem"
+# PRIVATE_KEY_PATH = "private_key.pem"
 
 try:
     # Load the keys from the files you generated in binary mode
     with open(PUBLIC_KEY_PATH, "rb") as f:
         public_key_bytes = f.read()
-    with open(PRIVATE_KEY_PATH, "rb") as f:
-        private_key_bytes = f.read()
+    # with open(PRIVATE_KEY_PATH, "rb") as f:
+    #     private_key_bytes = f.read()
 
     # Decode bytes into strings
     public_key = public_key_bytes.decode("utf-8")
-    private_key = private_key_bytes.decode("utf-8")
+    # private_key = private_key_bytes.decode("utf-8")
 
     auth_provider = BearerAuthProvider(public_key=public_key, audience=AUDIENCE)
 
@@ -61,6 +61,25 @@ def _get_client(project_name: str) -> OverleafClient:
 
 
 # --- MCP Tools ---
+@mcp.prompt
+def extract_keywords(job_descriont: str) -> str:
+    """ """
+
+    pass
+
+
+def propose_cv_changes(
+    section_text: str,
+    keywords: list[str],
+    extent: Literal["minimal", "moderate", "aggressive"],
+) -> str:
+    """ """
+    pass
+
+
+def compare_current_profile_to_job_description(cv_text: str) -> str:
+    """ """
+    pass
 
 
 @mcp.tool
@@ -151,5 +170,5 @@ if __name__ == "__main__":
         transport="stdio",
         host="127.0.0.1",
         port=8000,
-        log_level="debug",
+        log_level="info",
     )
