@@ -2,7 +2,7 @@ import os
 from typing import Literal, Dict, Any, List
 import json
 import re
-
+import uuid
 
 from loguru import logger
 from fastmcp import FastMCP
@@ -92,45 +92,58 @@ def create_tailored_section(
     new_content: str,
 ) -> Dict[str, Any]:
     """
-    This function is to be used when the final change is consolidated and you are ready to create a tailored section.
     Creates a NEW .tex file for a CV section tailored to a specific company and role.
-    This is a NON-DESTRUCTIVE action; it does not overwrite the original file.
+    If a file with the same name already exists, it adds a unique ID to the filename.
+    This is a NON-DESTRUCTIVE action.
 
     Args:
-        cv_section: The base section, e.g., "experience". Literal["education", "experience", "additional_experience", "skills".
-        company_role_slug: A clean string for the filename derived from the job company name and some id, e.g., "amazon_data_scientist".
+        cv_section: The base section, e.g., "experience".
+        company_role_slug: A clean string for the filename, e.g., "amazon_data_scientist".
         new_content: The full XeLaTeX content for the new file.
     """
-    # Define the directory where tailored sections will be stored.
-    target_dir = os.path.dirname(Config.CV_SECTIONS_PATHS[cv_section])
-
-    # Construct the new filename
-    file_name = f"{cv_section}-{company_role_slug}.tex"
-    full_path = os.path.join(target_dir, file_name)
-
     project_name = Config.CV_PROJECT_NAME
-    logger.info(f"Creating new tailored file at: {full_path}")
+    target_dir = os.path.dirname(Config.CV_SECTIONS_PATHS[cv_section])
 
     try:
         client = _get_client(project_name)
+        client.mkdir(target_dir, parents=True, exist_ok=True)  # Ensure directory exists
 
-        # Ensure the target directory exists in the Overleaf project
-        client.mkdir(target_dir, parents=True, exist_ok=True)
+        base_filename = f"{cv_section}-{company_role_slug}"
+        extension = ".tex"
+        file_name = f"{base_filename}{extension}"
 
-        # Write the new file
+        counter = 1
+        while True:
+            try:
+                # Check if file exists by trying to access its metadata
+                client.project.get_entity_by_path(os.path.join(target_dir, file_name))[
+                    "d"
+                ]
+                # If that succeeds, the file exists. Generate a new name.
+                logger.warning(
+                    f"File '{file_name}' already exists. Generating a new name."
+                )
+                file_name = f"{base_filename}_{counter}{extension}"
+                counter += 1
+            except TypeError:
+                # This error means the file does NOT exist. We can break the loop.
+                break
+
+        full_path = os.path.join(target_dir, file_name)
+
+        logger.info(f"Creating new tailored file at: {full_path}")
         client.write(full_path, new_content)
 
         logger.success(f"Successfully created file: {file_name}")
         return {
             "status": "success",
             "file_path": full_path,
+            "filename": file_name,
             "project_name": project_name,
         }
     except Exception as e:
-        logger.exception(f"Failed to create tailored file '{full_path}'")
-        raise ToolError(
-            f"Failed to write to file '{full_path}' in project '{project_name}': {e}"
-        )
+        logger.exception(f"Failed to create tailored file.")
+        raise ToolError(f"Failed to write to file in project '{project_name}': {e}")
 
 
 @mcp.tool
@@ -138,62 +151,70 @@ def update_main_tex_with_new_sections(
     new_section_filenames: list[str],
 ) -> Dict[str, Any]:
     """
-    Updates main.tex to point to the new tailored section files.
-    This is the final 'compile' step after creating tailored sections.
+    Updates main.tex by REPLACING the current \input command for a given section
+    with the one for the new tailored section. Handles replacing already-tailored sections.
 
     Args:
-        new_section_filenames: A list of the new filenames that were created,
-                               e.g., ["experience-amazon_data_scientist.tex"].
+        new_section_filenames: A list of the new filenames to use for replacement,
+                               e.g., ["experience.tex"] or ["experience-google_product_manager.tex"].
     """
     project_name = Config.CV_PROJECT_NAME
-    main_tex_path = "main.tex"
+    main_tex_path = Config.CV_MAIN_TEX_PATH
+
     logger.info(
-        f"Updating '{main_tex_path}' with new sections: {new_section_filenames}"
+        f"Updating '{main_tex_path}' by replacing sections with: {new_section_filenames}"
     )
 
     try:
         client = _get_client(project_name)
-
-        # 1. Read the current main.tex content
         original_content = client.read(main_tex_path)
         modified_content = original_content
 
-        # 2. Loop through each new filename and perform a replacement
         for filename in new_section_filenames:
-            # Extract the base section name (e.g., "experience" from "experience-amazon_...-.tex")
-            base_section = filename.split("-")[0]
+
+            # Use the robust split() method to get the base section.
+            base_section = filename.split(".tex")[0].split("-")[0]
+
+            # Validate that the result is a section we actually know about.
             if base_section not in Config.CV_SECTIONS_PATHS:
                 logger.warning(
-                    f"Could not find base section for '{filename}', skipping."
+                    f"Base section '{base_section}' (from '{filename}') is not a valid section. Skipping."
                 )
                 continue
 
-            # This regex finds the original \input, handling "./" prefix and whitespace
-            # e.g., \input{./sections/experience.tex}
+            # This regex finds the \input for the base section, whether it's the
+            # original or a previously tailored version.
             pattern_to_find = re.compile(
-                r"\\input\{(\./)?sections/" + base_section + r"\.tex\}"
+                r"\\input\s*\{\s*(\./)?sections/"
+                + re.escape(base_section)
+                + r"(-[a-zA-Z0-9_.-]*)?\.tex\s*\}",
+                re.IGNORECASE,
             )
 
-            # This is the new path inside the 'tailored' subdirectory we defined before
-            path_to_new_file = f"sections/tailored/{filename}"
-            replacement_string = f"\\input{{{path_to_new_file}}}"
+            path_to_new_file = f"sections/{filename}"
+            replacement_string = f"\\\\input{{{path_to_new_file}}}"
 
-            # Perform the substitution
-            modified_content = pattern_to_find.sub(replacement_string, modified_content)
+            modified_content, num_subs = pattern_to_find.subn(
+                replacement_string, modified_content
+            )
 
-        # 3. Write the updated content back to main.tex
+            if num_subs == 0:
+                error_msg = f"Update failed: Could not find any existing '\\input{{.../{base_section}...}}' line in '{main_tex_path}' to replace."
+                logger.error(error_msg)
+                raise ToolError(error_msg)
+
+        # Only write and report success if a change was actually made.
         if modified_content != original_content:
             client.write(main_tex_path, modified_content)
-            logger.success(f"Successfully updated '{main_tex_path}'.")
+            logger.success(
+                f"Successfully updated '{main_tex_path}' by replacing sections."
+            )
             return {"status": "success", "message": f"{main_tex_path} updated."}
         else:
             logger.warning(
-                "No changes were made to main.tex; new sections may not have matched."
+                "No changes were made to main.tex because no valid filenames were processed."
             )
-            return {
-                "status": "no_changes",
-                "message": "No matching sections found to update.",
-            }
+            return {"status": "no_changes", "message": "No changes made."}
 
     except Exception as e:
         logger.exception(f"Failed to update '{main_tex_path}'.")
