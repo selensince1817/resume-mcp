@@ -26,7 +26,7 @@ class Config:
     }
 
     # --- LLM ---
-    LLM_MAX_TOKENS = 8192
+    LLM_MAX_TOKENS = 1024
 
     # --- Overleaf Client ---
     OVERLEAF_SESSION_COOKIE = os.environ.get("OVERLEAF_SESSION_COOKIE")

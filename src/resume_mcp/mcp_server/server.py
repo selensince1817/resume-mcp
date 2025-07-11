@@ -2,14 +2,16 @@ import os
 from typing import Literal, Dict, Any, List
 import json
 
+
+from loguru import logger
 from fastmcp import FastMCP
-from typing import Dict
 from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import BearerAuthProvider
 from resume_mcp.overleaf_api.core import OverleafClient, OverleafConnectionError
 from .utils import load_public_key
 from .config import Config
+from .prompts import PromptLibrary
 
 # --- Bearer Authentication Initialization ---
 try:
@@ -41,51 +43,43 @@ async def analyse_cv_against_job(
     Reads all CV sections from Overleaf, compares to the job description via LLM,
     and returns a strengths & gaps analysis.
     """
-    # Step 1: Fetch resume sections -> Dict
+    # Step 1: Fetch resume sections
     project_name = Config.CV_PROJECT_NAME
+    logger.info(f"Step 1: Fetching resume sections for '{project_name}'...")
+
     resume_sections = await get_full_resume(project_name, ctx=ctx)
+    logger.success("Step 1: Successfully fetched resume sections.")
+    logger.debug(f"Found {len(resume_sections)} sections.")
 
-    # Step 2: Use the LLM prompt to get strengths/gaps as JSON (string) -> Gaps
-    analysis_json_str = await assess_profile_similarity.render(
-        resume_sections=resume_sections, job_description=job_description
+    # Step 2: Use the LLM prompt
+    logger.info("Step 2: Sending prompt to LLM for analysis...")
+    analysis_prompt = PromptLibrary.assess_profile_similarity(
+        resume_sections, job_description
     )
+    logger.info("Step 2: Prompt sent. Sending to LLM...")
+    analysis_response = await ctx.sample(
+        messages=analysis_prompt, max_tokens=Config.LLM_MAX_TOKENS
+    )
+    logger.info("Step 2: LLM response received.")
+    analysis_response_json_str = analysis_response.text
+    logger.success("Step 2: Received analysis from LLM.")
 
-    # Step 3: Parse JSON (fail gracefully if LLM messes up)
+    # Step 3: Parse JSON
+    logger.info("Step 3: Parsing LLM JSON response...")
     try:
-        analysis = json.loads(analysis_json_str)
+        analysis_json = json.loads(analysis_response_json_str)
+        logger.success("Step 3: Successfully parsed LLM JSON.")
     except Exception as e:
-        await ctx.error(
-            f"Failed to parse LLM JSON: {e}\nRaw output: {analysis_json_str}"
-        )
+        # logger.exception automatically captures the error details
+        logger.exception("Failed to parse LLM JSON. Raw output below.")
+        logger.error(f"Raw output: {analysis_response_json_str}")
         raise ToolError("LLM did not return valid JSON for strengths/gaps.")
 
-    # Step 4: Return strengths/gaps (already as dict)
-    return analysis
+    # Step 4: Return strengths/gaps
+    logger.success("Step 4: Analysis complete. Returning results.")
+    return analysis_json
 
 
-@mcp.prompt
-def assess_profile_similarity(resume_sections: dict, job_description: str) -> str:
-    """
-    Given a CV section dictionary and a job description,
-    return a JSON object with two keys:
-      - strengths: list of strengths relevant to the job
-      - gaps: list of missing skills or experiences.
-    Output MUST be valid JSON.
-    """
-    # The function just formats the message for the LLM.
-    # You can customize the instruction as much as you want.
-    return (
-        "Compare the following candidate resume (split by sections) to the provided job description. "
-        "Identify:\n"
-        "- strengths: relevant skills, experiences, or qualifications\n"
-        "- gaps: missing or weak areas\n"
-        'Return a JSON object: {"strengths": [...], "gaps": [...]} ONLY.\n\n'
-        f"RESUME: {resume_sections}\n\n"
-        f"JOB DESCRIPTION: {job_description}"
-    )
-
-
-@mcp.tool
 async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, str]:
     """
     Reads every CV section file (.tex) from the configured Overleaf project and returns their contents
@@ -192,6 +186,7 @@ def _get_client(project_name: str) -> OverleafClient:
 def main():
     """Main function to run the MCP server."""
     mcp.run(transport="http", host="127.0.0.1", port=8000, log_level="info")
+    # mcp.run()
 
 
 if __name__ == "__main__":
