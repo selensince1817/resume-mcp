@@ -25,8 +25,8 @@ except Exception as e:
 
 # --- MCP Server Initialization ---
 mcp = FastMCP(
-    name="Overleaf Project Manager",
-    instructions="This server provides tools to list Overleaf projects, and read or write files within a specific Overleaf project. Please provide a project_name for all file operations.",
+    name="CV Master",
+    instructions="This server provides tools to read the CV and modify it (if user permits).",
     dependencies=["pyoverleaf", "python-dotenv", "uvicorn"],
     auth=auth_provider,
     stateless_http=True,
@@ -35,58 +35,17 @@ mcp = FastMCP(
 
 # --- Main MCP Functionality --- #
 @mcp.tool
-async def analyse_cv_against_job(
-    job_description: str,
-    ctx: Context,
-) -> Dict[str, Any]:
-    """
-    Reads all CV sections from Overleaf, compares to the job description via LLM,
-    and returns a strengths & gaps analysis.
-    """
-    # Step 1: Fetch resume sections
-    project_name = Config.CV_PROJECT_NAME
-    logger.info(f"Step 1: Fetching resume sections for '{project_name}'...")
-
-    resume_sections = await get_full_resume(project_name, ctx=ctx)
-    logger.success("Step 1: Successfully fetched resume sections.")
-    logger.debug(f"Found {len(resume_sections)} sections.")
-
-    # Step 2: Use the LLM prompt
-    logger.info("Step 2: Sending prompt to LLM for analysis...")
-    analysis_prompt = PromptLibrary.assess_profile_similarity(
-        resume_sections, job_description
-    )
-    logger.info("Step 2: Prompt sent. Sending to LLM...")
-    analysis_response = await ctx.sample(
-        messages=analysis_prompt, max_tokens=Config.LLM_MAX_TOKENS
-    )
-    logger.info("Step 2: LLM response received.")
-    analysis_response_json_str = analysis_response.text
-    logger.success("Step 2: Received analysis from LLM.")
-
-    # Step 3: Parse JSON
-    logger.info("Step 3: Parsing LLM JSON response...")
-    try:
-        analysis_json = json.loads(analysis_response_json_str)
-        logger.success("Step 3: Successfully parsed LLM JSON.")
-    except Exception as e:
-        # logger.exception automatically captures the error details
-        logger.exception("Failed to parse LLM JSON. Raw output below.")
-        logger.error(f"Raw output: {analysis_response_json_str}")
-        raise ToolError("LLM did not return valid JSON for strengths/gaps.")
-
-    # Step 4: Return strengths/gaps
-    logger.success("Step 4: Analysis complete. Returning results.")
-    return analysis_json
-
-
-async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, str]:
+async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, Any]:
     """
     Reads every CV section file (.tex) from the configured Overleaf project and returns their contents
-    as a dictionary keyed by the section name.
+    as a dictionary keyed by the section name. Sections may contain XeLatex code, which must be respected.
     Example: {"heading": "...", "education": "...", ...}
     """
+
+    logger.info(f"Step 1: Fetching resume sections for '{project_name}'...")
+    project_name = Config.CV_PROJECT_NAME
     section_map = Config.CV_SECTIONS_PATHS
+
     client = _get_client(project_name)
     resume_data = {}
 
@@ -99,11 +58,84 @@ async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, str]:
             await ctx.error(f"Failed to read section '{section}': {e}")
             raise ToolError(f"Could not read {section}: {e}")
 
+    logger.success("Step 1: Successfully fetched resume sections.")
+    logger.debug(f"Found {len(resume_data)} sections.")
     return resume_data
+
+    # # Step 2: Use the LLM prompt
+    # logger.info("Step 2: Sending prompt to LLM for analysis...")
+    # analysis_prompt = PromptLibrary.assess_profile_similarity(
+    #     resume_sections, job_description
+    # )
+    # logger.info("Step 2: Prompt sent. Sending to LLM...")
+    # analysis_response = await ctx.sample(
+    #     messages=analysis_prompt, max_tokens=Config.LLM_MAX_TOKENS
+    # )
+    # logger.info("Step 2: LLM response received.")
+    # analysis_response_json_str = analysis_response.text
+    # logger.success("Step 2: Received analysis from LLM.")
+    #
+    # # Step 3: Parse JSON
+    # logger.info("Step 3: Parsing LLM JSON response...")
+    # try:
+    #     analysis_json = json.loads(analysis_response_json_str)
+    #     logger.success("Step 3: Successfully parsed LLM JSON.")
+    # except Exception as e:
+    #     # logger.exception automatically captures the error details
+    #     logger.exception("Failed to parse LLM JSON. Raw output below.")
+    #     logger.error(f"Raw output: {analysis_response_json_str}")
+    #     raise ToolError("LLM did not return valid JSON for strengths/gaps.")
+    #
+    # # Step 4: Return strengths/gaps
+    # logger.success("Step 4: Analysis complete. Returning results.")
+    # return analysis_json
+
+
+@mcp.tool
+def read_section(
+    cv_section: Literal["education", "experience", "additional_experience", "skills"]
+) -> str:
+    """
+    Reads the content of a specific file from an Overleaf project.
+    """
+    file_path = Config.CV_SECTIONS_PATHS[cv_section]
+    project_name = Config.CV_PROJECT_NAME
+    try:
+        client = _get_client()
+        return client.read(file_path)
+    except FileNotFoundError:
+        raise ToolError(f"File '{file_path}' not found in project.")
+    except Exception as e:
+        raise ToolError(str(e))
+
+
+@mcp.tool
+def replace_content(
+    cv_section: Literal["education", "experience", "additional_experience", "skills"],
+    new_content: str,
+) -> Dict[str, Any]:
+    """
+    Writes (or overwrites) a file in an Overleaf project with the provided content.
+    """
+    file_path = Config.CV_SECTIONS_PATHS[cv_section]
+    project_name = Config.CV_PROJECT_NAME
+
+    try:
+        client = _get_client(project_name)
+        client.write(file_path, new_content)
+        return {
+            "status": "success",
+            "file_path": file_path,
+            "project_name": project_name,
+        }
+    except Exception as e:
+        raise ToolError(
+            f"Failed to write to file '{file_path}' in project '{project_name}': {e}"
+        )
 
 
 # --- Atomic MCP Functionality --- #
-@mcp.tool
+@mcp.tool(enabled=False)
 def list_overleaf_projects() -> List[Dict[str, str]]:
     """
     Lists all accessible Overleaf projects, returning their names and IDs.
@@ -129,7 +161,7 @@ def list_files(project_name: str, path: str = "") -> List[str]:
         raise ToolError(str(e))
 
 
-@mcp.tool
+@mcp.tool(enabled=False)
 def read_file(project_name: str, file_path: str) -> str:
     """
     Reads the content of a specific file from an Overleaf project.
@@ -143,7 +175,7 @@ def read_file(project_name: str, file_path: str) -> str:
         raise ToolError(str(e))
 
 
-@mcp.tool
+@mcp.tool(enabled=False)
 def write_file(project_name: str, file_path: str, content: str) -> Dict[str, Any]:
     """
     Writes (or overwrites) a file in an Overleaf project with the provided content.
