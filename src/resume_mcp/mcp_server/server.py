@@ -1,6 +1,7 @@
 import os
 from typing import Literal, Dict, Any, List
 import json
+import re
 
 
 from loguru import logger
@@ -63,34 +64,6 @@ async def get_full_resume(ctx: Context) -> Dict[str, Any]:
     logger.debug(f"Found {len(resume_data)} sections.")
     return resume_data
 
-    # # Step 2: Use the LLM prompt
-    # logger.info("Step 2: Sending prompt to LLM for analysis...")
-    # analysis_prompt = PromptLibrary.assess_profile_similarity(
-    #     resume_sections, job_description
-    # )
-    # logger.info("Step 2: Prompt sent. Sending to LLM...")
-    # analysis_response = await ctx.sample(
-    #     messages=analysis_prompt, max_tokens=Config.LLM_MAX_TOKENS
-    # )
-    # logger.info("Step 2: LLM response received.")
-    # analysis_response_json_str = analysis_response.text
-    # logger.success("Step 2: Received analysis from LLM.")
-    #
-    # # Step 3: Parse JSON
-    # logger.info("Step 3: Parsing LLM JSON response...")
-    # try:
-    #     analysis_json = json.loads(analysis_response_json_str)
-    #     logger.success("Step 3: Successfully parsed LLM JSON.")
-    # except Exception as e:
-    #     # logger.exception automatically captures the error details
-    #     logger.exception("Failed to parse LLM JSON. Raw output below.")
-    #     logger.error(f"Raw output: {analysis_response_json_str}")
-    #     raise ToolError("LLM did not return valid JSON for strengths/gaps.")
-    #
-    # # Step 4: Return strengths/gaps
-    # logger.success("Step 4: Analysis complete. Returning results.")
-    # return analysis_json
-
 
 @mcp.tool
 def read_cv_section(
@@ -113,30 +86,118 @@ def read_cv_section(
 
 
 @mcp.tool
-def replace_content(
+def create_tailored_section(
     cv_section: Literal["education", "experience", "additional_experience", "skills"],
+    company_role_slug: str,
     new_content: str,
 ) -> Dict[str, Any]:
     """
-    Replace a given CV section with a new content (in the context of tailoring a resume section).
-    Choose from ["education", "experience", "additional_experience", "skills"].
-    new_content: str must contain the unchanged XeLatex structure.
+    This function is to be used when the final change is consolidated and you are ready to create a tailored section.
+    Creates a NEW .tex file for a CV section tailored to a specific company and role.
+    This is a NON-DESTRUCTIVE action; it does not overwrite the original file.
+
+    Args:
+        cv_section: The base section, e.g., "experience". Literal["education", "experience", "additional_experience", "skills".
+        company_role_slug: A clean string for the filename derived from the job company name and some id, e.g., "amazon_data_scientist".
+        new_content: The full XeLaTeX content for the new file.
     """
-    file_path = Config.CV_SECTIONS_PATHS[cv_section]
+    # Define the directory where tailored sections will be stored.
+    target_dir = os.path.dirname(Config.CV_SECTIONS_PATHS[cv_section])
+
+    # Construct the new filename
+    file_name = f"{cv_section}-{company_role_slug}.tex"
+    full_path = os.path.join(target_dir, file_name)
+
     project_name = Config.CV_PROJECT_NAME
+    logger.info(f"Creating new tailored file at: {full_path}")
 
     try:
         client = _get_client(project_name)
-        client.write(file_path, new_content)
+
+        # Ensure the target directory exists in the Overleaf project
+        client.mkdir(target_dir, parents=True, exist_ok=True)
+
+        # Write the new file
+        client.write(full_path, new_content)
+
+        logger.success(f"Successfully created file: {file_name}")
         return {
             "status": "success",
-            "file_path": file_path,
+            "file_path": full_path,
             "project_name": project_name,
         }
     except Exception as e:
+        logger.exception(f"Failed to create tailored file '{full_path}'")
         raise ToolError(
-            f"Failed to write to file '{file_path}' in project '{project_name}': {e}"
+            f"Failed to write to file '{full_path}' in project '{project_name}': {e}"
         )
+
+
+@mcp.tool
+def update_main_tex_with_new_sections(
+    new_section_filenames: list[str],
+) -> Dict[str, Any]:
+    """
+    Updates main.tex to point to the new tailored section files.
+    This is the final 'compile' step after creating tailored sections.
+
+    Args:
+        new_section_filenames: A list of the new filenames that were created,
+                               e.g., ["experience-amazon_data_scientist.tex"].
+    """
+    project_name = Config.CV_PROJECT_NAME
+    main_tex_path = "main.tex"
+    logger.info(
+        f"Updating '{main_tex_path}' with new sections: {new_section_filenames}"
+    )
+
+    try:
+        client = _get_client(project_name)
+
+        # 1. Read the current main.tex content
+        original_content = client.read(main_tex_path)
+        modified_content = original_content
+
+        # 2. Loop through each new filename and perform a replacement
+        for filename in new_section_filenames:
+            # Extract the base section name (e.g., "experience" from "experience-amazon_...-.tex")
+            base_section = filename.split("-")[0]
+            if base_section not in Config.CV_SECTIONS_PATHS:
+                logger.warning(
+                    f"Could not find base section for '{filename}', skipping."
+                )
+                continue
+
+            # This regex finds the original \input, handling "./" prefix and whitespace
+            # e.g., \input{./sections/experience.tex}
+            pattern_to_find = re.compile(
+                r"\\input\{(\./)?sections/" + base_section + r"\.tex\}"
+            )
+
+            # This is the new path inside the 'tailored' subdirectory we defined before
+            path_to_new_file = f"sections/tailored/{filename}"
+            replacement_string = f"\\input{{{path_to_new_file}}}"
+
+            # Perform the substitution
+            modified_content = pattern_to_find.sub(replacement_string, modified_content)
+
+        # 3. Write the updated content back to main.tex
+        if modified_content != original_content:
+            client.write(main_tex_path, modified_content)
+            logger.success(f"Successfully updated '{main_tex_path}'.")
+            return {"status": "success", "message": f"{main_tex_path} updated."}
+        else:
+            logger.warning(
+                "No changes were made to main.tex; new sections may not have matched."
+            )
+            return {
+                "status": "no_changes",
+                "message": "No matching sections found to update.",
+            }
+
+    except Exception as e:
+        logger.exception(f"Failed to update '{main_tex_path}'.")
+        raise ToolError(f"Failed to update '{main_tex_path}': {e}")
 
 
 # --- Atomic MCP Functionality --- #
