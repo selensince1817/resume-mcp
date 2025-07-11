@@ -25,7 +25,7 @@ except Exception as e:
 
 # --- MCP Server Initialization ---
 mcp = FastMCP(
-    name="CV Master",
+    name="RMCP",
     instructions="This server provides tools to read the CV and modify it (if user permits).",
     dependencies=["pyoverleaf", "python-dotenv", "uvicorn"],
     auth=auth_provider,
@@ -35,18 +35,19 @@ mcp = FastMCP(
 
 # --- Main MCP Functionality --- #
 @mcp.tool
-async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, Any]:
+async def get_full_resume(ctx: Context) -> Dict[str, Any]:
     """
     Reads every CV section file (.tex) from the configured Overleaf project and returns their contents
     as a dictionary keyed by the section name. Sections may contain XeLatex code, which must be respected.
     Example: {"heading": "...", "education": "...", ...}
     """
-
-    logger.info(f"Step 1: Fetching resume sections for '{project_name}'...")
     project_name = Config.CV_PROJECT_NAME
     section_map = Config.CV_SECTIONS_PATHS
 
+    logger.info(f"Step 1: Fetching resume sections for '{project_name}'...")
+
     client = _get_client(project_name)
+
     resume_data = {}
 
     for section, path in section_map.items():
@@ -92,11 +93,13 @@ async def get_full_resume(project_name: str, ctx: Context) -> Dict[str, Any]:
 
 
 @mcp.tool
-def read_section(
+def read_cv_section(
     cv_section: Literal["education", "experience", "additional_experience", "skills"]
 ) -> str:
     """
-    Reads the content of a specific file from an Overleaf project.
+    Reads a given CV section.
+    Choose from ["education", "experience", "additional_experience", "skills"].
+    Returns a string containing some XeLatex structure which must be respected.
     """
     file_path = Config.CV_SECTIONS_PATHS[cv_section]
     project_name = Config.CV_PROJECT_NAME
@@ -115,7 +118,9 @@ def replace_content(
     new_content: str,
 ) -> Dict[str, Any]:
     """
-    Writes (or overwrites) a file in an Overleaf project with the provided content.
+    Replace a given CV section with a new content (in the context of tailoring a resume section).
+    Choose from ["education", "experience", "additional_experience", "skills"].
+    new_content: str must contain the unchanged XeLatex structure.
     """
     file_path = Config.CV_SECTIONS_PATHS[cv_section]
     project_name = Config.CV_PROJECT_NAME
@@ -217,8 +222,8 @@ def _get_client(project_name: str) -> OverleafClient:
 # --- Main Execution Block ---
 def main():
     """Main function to run the MCP server."""
-    mcp.run(transport="http", host="127.0.0.1", port=8000, log_level="info")
-    # mcp.run()
+    # mcp.run(transport="http", host="127.0.0.1", port=8000, log_level="info")
+    mcp.run()
 
 
 if __name__ == "__main__":
