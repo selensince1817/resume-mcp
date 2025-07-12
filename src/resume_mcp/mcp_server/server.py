@@ -85,6 +85,18 @@ def read_cv_section(
         raise ToolError(str(e))
 
 
+import os
+from typing import Dict, Any, Literal
+
+
+# Assuming the following are defined elsewhere:
+# - @mcp.tool decorator
+# - Config object with CV_PROJECT_NAME and CV_SECTIONS_PATHS
+# - _get_client(project_name) function
+# - logger object
+# - ToolError exception
+
+
 @mcp.tool
 def create_tailored_section(
     cv_section: Literal["education", "experience", "additional_experience", "skills"],
@@ -102,34 +114,32 @@ def create_tailored_section(
         new_content: The full XeLaTeX content for the new file.
     """
     project_name = Config.CV_PROJECT_NAME
+    # Assuming CV_SECTIONS_PATHS gives a file path, os.path.dirname gets its directory
     target_dir = os.path.dirname(Config.CV_SECTIONS_PATHS[cv_section])
 
     try:
         client = _get_client(project_name)
         client.mkdir(target_dir, parents=True, exist_ok=True)  # Ensure directory exists
 
+        # --- Start of Corrected Block ---
+
         base_filename = f"{cv_section}-{company_role_slug}"
         extension = ".tex"
         file_name = f"{base_filename}{extension}"
-
-        counter = 1
-        while True:
-            try:
-                # Check if file exists by trying to access its metadata
-                client.project.get_entity_by_path(os.path.join(target_dir, file_name))[
-                    "d"
-                ]
-                # If that succeeds, the file exists. Generate a new name.
-                logger.warning(
-                    f"File '{file_name}' already exists. Generating a new name."
-                )
-                file_name = f"{base_filename}_{counter}{extension}"
-                counter += 1
-            except TypeError:
-                # This error means the file does NOT exist. We can break the loop.
-                break
-
         full_path = os.path.join(target_dir, file_name)
+        counter = 1
+
+        # Use the client.exists() method to check for the file robustly.
+        while client.exists(full_path):
+            logger.warning(f"File '{file_name}' already exists. Generating a new name.")
+            # If it exists, create a new filename and a new full_path to check in the next loop.
+            file_name = f"{base_filename}_{counter}{extension}"
+            full_path = os.path.join(target_dir, file_name)
+            counter += 1
+
+        # --- End of Corrected Block ---
+
+        # 'full_path' now contains a path that is guaranteed to be unique.
 
         logger.info(f"Creating new tailored file at: {full_path}")
         client.write(full_path, new_content)

@@ -11,7 +11,6 @@ import pyoverleaf
 import certifi
 from pathlib import PurePosixPath
 
-# Load .env automatically if python-dotenv is installed (optional)
 try:
     import dotenv
 
@@ -96,7 +95,7 @@ class OverleafClient:
         """Removes a file or empty directory from the project."""
         self.io.remove(str(path))
 
-    # ---------- NEW: project listing ----------
+    # ---------- Static Methods ----------
 
     @staticmethod
     def list_projects() -> list[dict]:
