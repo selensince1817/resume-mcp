@@ -50,24 +50,38 @@ class PromptLibrary:
 
             First, use `get_full_resume()` to get the complete, up-to-date text of all my base CV sections. Then, perform a deep strategic analysis of the job description against my CV. This analysis will form the basis for all your proposed changes. It includes:
 
-            * **Job Requirement DNA:** Deconstruct the job description into Critical Requirements, Preferred Qualifications, Key Competencies, and Business Context.
-            * **Candidate-Job Fit Analysis:** Assess my CV against the Job DNA, identifying Strengths and Gaps/Opportunities.
-            * **Define the Career Narrative:** Based on all analysis, formulate a one-sentence theme that connects my past experiences, present skills, and future goals to this specific role. This narrative will guide all content modifications. (e.g., *"The narrative is of a technical data expert now seeking to apply analytical skills to strategic business problems, making this Business Analyst role the logical next step."*)
+            * **Job Requirement DNA:** Deconstruct the job description into:
+                * **Critical (Must-Have) Requirements:** Essential skills, tools (e.g., SQL, Python), and experiences.
+                * **Preferred (Nice-to-Have) Qualifications:** Skills that would make a candidate stand out.
+                * **Key Competencies & Soft Skills:** Emphasized non-technical skills (e.g., stakeholder communication).
+                * **Business Context:** The role's specific domain (e.g., Capacity Planning, Logistics, Cost Optimization).
+
+            * **Candidate-Job Fit Analysis:** Assess my CV against the Job DNA, identifying Strengths, Gaps and Opportunities.
+                * **Strengths & Direct Alignments:** My skills and experiences that directly match the job's requirements.
+                * **Gaps & Opportunities:** Key requirements that are weak or absent in my CV and note opportunities to bridge them by truthfully reframing existing experience.
+
+            * **Define the Career Narrative:** Develop a:
+                * **Narrative:**Based on all analysis, formulate a one-sentence theme that connects my past experiences, present skills, and future goals to this specific role. This narrative will guide all content modifications. (e.g., *"The narrative is of a technical data expert now seeking to apply analytical skills to strategic business problems, making this Business Analyst role the logical next step."*)
+
 
             ### 2. Draft & Propose New File(s)
 
-            Based on your analysis, formulate a plan and draft the new content. You will then present this entire plan and draft to me for approval.
+            Based on your analysis, formulate a plan and draft the new content for the CV sections: 2, 3 or all 4. (recall: ["education", "experience", "additional_experience", "skills"]). You will then present this entire plan and draft to me for approval.
 
             * **A. Content Drafting Guidelines:** When drafting the new `.tex` content, you must adhere to the following expert principles:
                 * **Tailor "Experience":**
+                    * **Recall the previous analysis:** Recall “Critical Requirements”, "Preferred Qualifications", “Key Competencies + Soft Skills” and “Business Context”.
                     * **Support the Narrative:** Every bullet point must serve as evidence for the overarching career narrative defined in your analysis. It should help answer the question "Why this role now?".
                     * **Focus on Achievements, Not Duties:** Your primary goal is to demonstrate impact, not to list job responsibilities.
                     * **Structure Bullet Points:** Use the **Action + Context + Result** formula.
                     * **Quantify Everything:** Show tangible impact with specific metrics (Financials, Percentages, Volume, Time).
                     * **Use Powerful Language:** Replace weak, passive voice ("was responsible for...") with strong, dynamic action verbs ("managed...", "created..."). **You must not use the word "spearheaded".**
                     * **Integrate Keywords Precisely:** Weave essential keywords from the job description naturally into your bullet points. Use the exact phrasing where possible.
-                    * **Highlight Technologies:** Mention key technologies (e.g., Tableau, Python) prominently.
+                    * **Highlight Technologies:** Mention key and preferred/optional technologies/skills (e.g., Tableau, Python) prominently.
                     * **Re-order Bullet Points:** Lead with the most relevant accomplishment for the target role.
+                    * **Use British English Spelling:** Use British English variants of the words where appropriate.
+                    * **Use ”\pounds” to express £:** The file doesn’t read “£”, hence use “\pounds” to insert “£” (e.g Raised \pounds30K…).
+
                 * **Optimize "Skills" & "Education":** Ensure these sections also align with and support the career narrative. Emphasize relevant modules or skills that fit the story.
                 * **De-emphasize:** Minimize or omit experiences or skills that detract from the core narrative.
 
@@ -98,5 +112,4 @@ class PromptLibrary:
             1.  **Respect the XeLaTeX Syntax:** You are editing raw `.tex` source files. You **MUST NOT** alter, remove, or damage any XeLaTeX commands, environments, curly braces `{}`, or comment symbols `%`.
             2.  **Respect the Content and Format:** You **MUST NOT** fabricate any experiences or skills. All adjustments must be a truthful representation of my background. The new content's length must be approximately the same as the original (±15% variance is allowed).
             3.  **Respect the Workflow:** You **MUST** follow the five-step, approval-gated cycle precisely. Do not combine steps or act without my confirmation.
-
         """
